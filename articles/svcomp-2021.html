@@ -87,7 +87,7 @@ Some optimisations introduce bitwise operations even when the original program h
 For example, multiplications tend to be compiled to shift operations.
 We thus needed to encode the semantics of such operations precisely.</p>
 <h2>The price of precision</h2>
-<p>Many verification tools based on SMT solver use the theory of integers to represent program variables and uninterpreted functions to over-approximate bitwise operations.
+<p>Many verification tools based on SMT solvers use the theory of integers to represent program variables.
 The trade-off between the efficiency of a theory and the precision in modelling semantics is well-known.
 <a href="https://link.springer.com/chapter/10.1007/978-3-030-31157-5_3">This</a> paper explores such trade-off in the context of the <a href="https://klee.github.io">KLEE</a> symbolic execution engine.
 <a href="https://github.com/smackers/smack">SMACK</a>, another tool participating in SVCOMP, implements <a href="https://soarlab.org/publications/2017_aplas_hr/">an approach</a> to diagnose spurious counterexamples caused by such approximations and gradually refines the precision.</p>
@@ -99,36 +99,38 @@ When we encounter a bitwise operation, we convert integers to bit-vectors, apply
 <p>This is an extended version of the evaluation we performed before our participation in SVCOMP 2021.
 We did not only tried several compiler optimisations (<code>-O0</code>, <code>-O3</code>, <code>-Os</code>, <code>-Oz</code>), but also different program transformations and integers encoding.
 As mentioned above, one encoding models integers as bit-vectors.
-As we rely on SMACK to convert C files to Boogie and there is a potential <a href="https://github.com/smackers/smack/issues/187">problem</a> with unsigned integer comparisons in such conversion, we can get two different Boogie programs for the same C code.
+As we rely on SMACK to convert C files to Boogie and there is a potential <a href="https://github.com/smackers/smack/issues/187">problem</a> with unsigned integer comparisons in such conversion, SMACK provides two different transformation modes.
 One transformation is sound but it requires wrapping comparisons using modulo operations and thus the generated SMT encoding is probably slow.
-The encoding of the other transformation is supposed to be fast, but it might be unsound.</p>
+The encoding of the other transformation is supposed to be fast, but it might be unsound.
+For the evaluation we used the bit-vector encoding and the same integer-encoding for both transformation modes.</p>
 <p>The plots below show that using compiler optimisations clearly helps Dartagnan.
 The x-axes represent solved tasks and the y-axes CPU time.
-Despite the used encoding, it can be seen that the number of solved tasks is quite low (below 70) when <code>-O0</code> is used.
+Despite the used encoding, it can be seen that the number of solved tasks is quite low when <code>-O0</code> is used (below 70).
 The <code>-O3</code> option seem to be the best one, closely followed by <code>-Os</code>.
-This is due to the program simplifications made by the optimisations as described in the example above. 
-In general, using optimisations, we are able to solve 3x more benchmarks. 
+This is due to the simplifications made by the compiler optimisations as described in the example above. 
+In general, using optimisations we are able to solve 3x more benchmarks. 
 <img alt="BV" src="../images/svcomp-2021/BV.png" style="float:left; padding-right:20px; padding-top:20px" width="750">
 <img alt="WI" src="../images/svcomp-2021/WI.png" style="float:left; padding-right:20px; padding-top:20px" width="750">
 <img alt="UI" src="../images/svcomp-2021/UI.png" style="float:left; padding-right:20px; padding-top:20px" width="750"></p>
-<p>Let's take a look to how the different encodings.
+<p>Let's take a look to how the different encodings impact performance.
 The results on the first plot (using <code>-O0</code>) are somehow surprising.
-It is kind of common knowledge in the verification community that the theory of integers has better performance than the theory of big-vectors.
+It is kind of folklore in the verification community that the theory of integers has better performance than the theory of big-vectors.
 However we obtained the worst results using unbounded integers (UI), i.e. the SMACK transformation without wrapping comparisons + the SMT encoding using the theory of integers.
 The reason why the bit-vector encoding (BV) performs better is that many benchmarks use bitwise operations and thus the integer encoding converts the operands to bit-vectors, performs the operation and convert the result back to integers.
 This is required to guarantee soundness, but experiments suggests that converting between theories is very expensive.
-We expected UI to be the fastest of both integer encodings, however we were surprised that wrapped integers encoding (WI), which requires many modulo operations, performed better than UI.
+We expected UI to be the fastest of both integer encodings, however we were surprised that wrapped integers (WI), which requires many modulo operations, performed better than UI.
 So far we do not have an answer of why this is the case.
 <img alt="O0" src="../images/svcomp-2021/O0.png" style="float:left; padding-right:20px; padding-top:20px" width="750"></p>
-<p>When compiled using <code>-O3</code> (see below), the UI encoding was faster than WI as one would expect.
-However, due to its unsoundness of the transformation, this generates many wrong results.
-Since wrong results gives negative points in SVCOMP, if we compared the obtained points, WI performed better than UI.
+<p>When compiled using <code>-O3</code>, the UI encoding was faster than WI as one would expect.
+However, due to ithe unsoundness of the transformation, this generates many wrong results.
+Since wrong results gives negative points in SVCOMP, if we compared the obtained points, WI achieves better results than UI.
 At this optimisation level, BV was a clear winner both on solving times (again because pure bit-vectors are faster than switching between theories) and correctness of results.
+Therefore, for SVCOMP 2021 we chose the <code>-03</code> optimisation with the bit-vectors encoding.
 <img alt="O3" src="../images/svcomp-2021/O3.png" style="float:left; padding-right:20px; padding-top:20px" width="750"></p>
 <h2>Conclusion</h2>
-<p>Something that is quite clear is that using compiler optimisations helps software verification tools.
-Here we just evaluated a BMC, but <a href="https://klee.github.io/tutorials/testing-function/">KLEE also uses some hand-picked optimisations before starting the exploration</a>.
-Which encoding to use depends on the presence of bitwise operations.
+<p>Something that is quite clear from the plots above is that using compiler optimisations helps software verification.
+Here we just evaluated a BMC tool, but <a href="https://klee.github.io/tutorials/testing-function/">KLEE also uses some hand-picked optimisations before starting the exploration</a>.
+Which SMT encoding to use depends on the presence of bitwise operations on the program.
 However, remember that even if they are not present in the original C file, they can be introduced by the compiler optimisations.  </p>
       <section>
         <p id="post-share-links" align="right">
