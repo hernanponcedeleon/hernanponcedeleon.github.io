@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
         <meta charset="utf-8" />
-        <title>Hernán Ponce de León - Hernán Ponce de León</title>
+        <title>Compiler optimisations and the price of precision. How much do they influence software verification?</title>
         <link rel="stylesheet" href="https://hernanponcedeleon.github.io/theme/css/main.css" />
 
         <!--[if IE]>
@@ -20,18 +20,23 @@
                         <li><a href="https://hernanponcedeleon.github.io/pages/publications.html">Publications</a></li>
     
                         <li><a href="https://hernanponcedeleon.github.io/pages/tools.html">Tools</a></li>
-                    <li><a href="https://hernanponcedeleon.github.io/category/blog.html">Blog</a></li>
+                    <li class="active"><a href="https://hernanponcedeleon.github.io/category/blog.html">Blog</a></li>
                 </ul>
                 </nav>
         </header><!-- /#banner -->
+<section id="content" class="body">
+  <article>
+    <header>
+      <h1 class="entry-title">
+        <a href="https://hernanponcedeleon.github.io/articles/svcomp-2021.html" rel="bookmark"
+           title="Permalink to Compiler optimisations and the price of precision. How much do they influence software verification?">Compiler optimisations and the price of precision. How much do they influence software verification?</a></h1>
+    </header>
 
-            <aside id="featured" class="body">
-                <article>
-                    <h1 class="entry-title"><a href="https://hernanponcedeleon.github.io/articles/svcomp-2021.html">Compiler optimisations and the price of precision. How much do they influence software verification?</a></h1>
+    <div class="entry-content">
 <footer class="post-info">
         <span>Mon 25 January 2021</span>
 
-</footer><!-- /.post-info --><hr>
+</footer><!-- /.post-info -->      <hr>
 <p><img alt="Compilers" src="../images/compilers.png" style="float:left; padding-right:20px; padding-top:20px" width="300"></p>
 <style>body {text-align: justify}</style>
 
@@ -124,36 +129,18 @@ At this optimisation level, BV was a clear winner both on solving times (again b
 <p>Something that is quite clear is that using compiler optimisations helps software verification tools.
 Here we just evaluated a BMC, but <a href="https://klee.github.io/tutorials/testing-function/">KLEE also uses some hand-picked optimisations before starting the exploration</a>.
 Which encoding to use depends on the presence of bitwise operations.
-However, remember that even if they are not present in the original C file, they can be introduced by the compiler optimisations.  </p>                </article>
-            </aside><!-- /#featured -->
-                <section id="content" class="body">
-                    <h1>Other articles</h1>
-                    <ol id="posts-list" class="hfeed">
+However, remember that even if they are not present in the original C file, they can be introduced by the compiler optimisations.  </p>
+      <section>
+        <p id="post-share-links" align="right">
+          <a href="https://twitter.com/intent/tweet?text=Compiler%20optimisations%20and%20the%20price%20of%20precision.%20How%20much%20do%20they%20influence%20software%20verification%3F&url=https%3A//hernanponcedeleon.github.io/articles/svcomp-2021.html" class="twitter-share-button" data-count="horizontal">Tweet</a>
+          <script>!function(d,s,id){var js,fjs=d.getElementsByTagName(s)[0];if(!d.getElementById(id)){js=d.createElement(s);js.id=id;js.src="//platform.twitter.com/widgets.js";fjs.parentNode.insertBefore(js,fjs);}}(document,"script","twitter-wjs");
+          </script>
+        </p>
+      </section>
+    </div><!-- /.entry-content -->
 
-            <li><article class="hentry">
-                <header>
-                    <h1><a href="https://hernanponcedeleon.github.io/articles/artifacts.html" rel="bookmark"
-                           title="Permalink to Creating successful artifacts">Creating successful artifacts</a></h1>
-                </header>
-
-                <div class="entry-content">
-<footer class="post-info">
-        <span>Mon 21 September 2020</span>
-
-</footer><!-- /.post-info -->                <hr>
-<p><img alt="Artifacts" src="../images/artifacts.png" style="float:left; padding-right:20px; padding-top:20px" width="300"></p>
-<style>body {text-align: justify}</style>
-
-<p>This year I took part in the Artifact Evaluation Committee (AEC) of three of the most important programming languages conferences: <a href="https://popl20.sigplan.org">POPL</a>, <a href="https://conf.researchr.org/home/pldi-2020">PLDI</a> and <a href="https://2020.splashcon.org/track/splash-2020-oopsla">OOPSLA</a>.
-Below I describe some of the problems I commonly encounter together with some tips on how to avoid them. I also mention some …</p>
-                <a class="readmore" href="https://hernanponcedeleon.github.io/articles/artifacts.html">read more</a>
-                </div><!-- /.entry-content -->
-            </article></li>
-            </ol><!-- /#posts-list -->
-<p class="paginator">
-    Page 1 / 1
-</p>
-            </section><!-- /#content -->
+  </article>
+</section>
         <section id="extras" class="body">
                 <div class="social">
                         <h2>social</h2>

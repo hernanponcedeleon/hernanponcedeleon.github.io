@@ -27,46 +27,132 @@
 
             <aside id="featured" class="body">
                 <article>
-                    <h1 class="entry-title"><a href="https://hernanponcedeleon.github.io/articles/artifacts.html">Creating successful artifacts</a></h1>
+                    <h1 class="entry-title"><a href="https://hernanponcedeleon.github.io/articles/svcomp-2021.html">Compiler optimisations and the price of precision. How much do they influence software verification?</a></h1>
+<footer class="post-info">
+        <span>Mon 25 January 2021</span>
+
+</footer><!-- /.post-info --><hr>
+<p><img alt="Compilers" src="../images/compilers.png" style="float:left; padding-right:20px; padding-top:20px" width="300"></p>
+<style>body {text-align: justify}</style>
+
+<p>This article explains some of the lessons learned during the last year while preparing <a href="https://github.com/hernanponcedeleon/Dat3M">Dartagnan</a>, our Bounded Model Checking (BMC) tool, to participate in the 10th Competition on Software Verification (<a href="https://sv-comp.sosy-lab.org/2021/">SVCOMP 2021</a>).
+The <a href="https://hernanponcedeleon.github.io/pdfs/svcomp2021.pdf">paper</a>  summarising these lessons will appear in the proceedings of <a href="https://etaps.org/2021/tacas">TACAS 2021</a>.</p>
+<p>In SVCOMP 2020 Dartagnan only participated in the reachability category for concurrent programs.
+For 2021 we wanted to show that our tool can also efficiently verify sequential programs.
+The problem was that many of the verification tasks required many loop iterations (which is a challenge for BMC) to either find a bug or prove the program correct.
+This lead me to read some papers about <a href="https://link.springer.com/chapter/10.1007/978-3-642-39799-8_26">under-approximating loops</a> to find violations easier, or <a href="https://past.date-conference.com/proceedings-archive/2015/pdf/0245.pdf">over-approximating them</a> to provide sound results for programs with loops of large or unknown bounds.
+When I mentioned these papers to <a href="https://www.unibw.de/patch/kinder">Johannes Kinder</a>, he told me</p>
+<blockquote>
+<blockquote>
+<p>You can obtain similar results using static analysis techniques. Actually this is what an optimising compiler does in many situations.</p>
+</blockquote>
+</blockquote>
+<h2>Leveraging compiler optimisations</h2>
+<p>While the performance of techniques like stateless model checking or symbolic execution mostly depends on the number of executions of the program, BMC tools are much more sensitive to the program syntax.
+This is because BMC encodes the semantics of the program as a single SMT formula representing all its executions.
+The loop structure and the number of program variables directly impact the formula size and thus the solving times.
+Our goal was to simplify the structure of the program while preserving its semantics.
+<em>Wait a minute, isn't that what a compiler does when it optimises code?</em> Exactly!</p>
+<p>Consider the following program which is part of the ReachSafety category of SVCOMP</p>
+<div class="highlight"><pre><span></span><code><span class="kt">int</span> <span class="nf">main</span><span class="p">(</span><span class="kt">void</span><span class="p">)</span> <span class="p">{</span>
+    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">x</span> <span class="o">=</span> <span class="mi">1</span><span class="p">;</span>
+    <span class="kt">unsigned</span> <span class="kt">int</span> <span class="n">y</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+    <span class="k">while</span> <span class="p">(</span><span class="n">y</span> <span class="o">&lt;</span> <span class="mi">1024</span><span class="p">)</span> <span class="p">{</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="mi">0</span><span class="p">;</span>
+        <span class="n">y</span><span class="o">++</span><span class="p">;</span>
+    <span class="p">}</span>
+    <span class="n">assert</span><span class="p">(</span><span class="n">x</span> <span class="o">==</span> <span class="mi">0</span><span class="p">);</span>
+<span class="p">}</span>
+</code></pre></div>
+
+
+<p>A BMC tool has to unroll the program 1024 times to prove the program correct. 
+However, since the value of <code>x</code> is constant at every loop iteration, the assignment can be moved outside the loop. 
+Since the value of <code>y</code> is never read, the instruction <code>y++</code> can be removed (using dead store elimination) leading to an empty loop which can also be removed. 
+Finally, using constant propagation, the assertion can be re-written as <code>assert(0 == 0)</code> which is trivially true.</p>
+<p>All these optimizations are implemented in most optimising compilers.
+Since Dartagnan performs the verification after compiling to LLVM, it gets all these program simplifications for free.
+After 15 minutes, Dartagnan reaches a timeout when trying to verify the program above.
+However, by just using the <code>-O3</code> flag when compiling the code to LLVM, the resulting (optimised) program can be verified within seconds.</p>
+<p>So far so good, but we all know <em>there ain't no such thing as free lunch</em>.
+Using an optimising compiler has its risks.
+First of all, <a href="https://dl.acm.org/doi/10.1145/2676726.2676995">most compiler optimisations are unsound for concurrent programs</a> and thus we did not use any during the competition for the concurrency category.
+Even for single threaded programs, there is a price to pay.
+Some optimisations introduce bitwise operations even when the original program has none.
+For example, multiplications tend to be compiled to shift operations.
+We thus needed to encode the semantics of such operations precisely.</p>
+<h2>The price of precision</h2>
+<p>Many verification tools based on SMT solver use the theory of integers to represent program variables and uninterpreted functions to over-approximate bitwise operations.
+The trade-off between the efficiency of a theory and the precision in modelling semantics is well-known.
+<a href="https://link.springer.com/chapter/10.1007/978-3-030-31157-5_3">This</a> paper explores such trade-off in the context of the <a href="https://klee.github.io">KLEE</a> symbolic execution engine.
+<a href="https://github.com/smackers/smack">SMACK</a>, another tool participating in SVCOMP, implements <a href="https://soarlab.org/publications/2017_aplas_hr/">an approach</a> to diagnose spurious counterexamples caused by such approximations and gradually refines the precision.</p>
+<p>To guarantee soundness when using compiler optimisations, we implemented two precise SMT encodings for integers. 
+The first is based on the theory of bit-vectors, where we get bit-precise reasoning for free from the theory. 
+The second is based on the theory of integers, and we do an on-demand conversion.
+When we encounter a bitwise operation, we convert integers to bit-vectors, apply the operation and convert the result back to an integer.</p>
+<h2>Experiments</h2>
+<p>This is an extended version of the evaluation we performed before our participation in SVCOMP 2021.
+We did not only tried several compiler optimisations (<code>-O0</code>, <code>-O3</code>, <code>-Os</code>, <code>-Oz</code>), but also different program transformations and integers encoding.
+As mentioned above, one encoding models integers as bit-vectors.
+As we rely on SMACK to convert C files to Boogie and there is a potential <a href="https://github.com/smackers/smack/issues/187">problem</a> with unsigned integer comparisons in such conversion, we can get two different Boogie programs for the same C code.
+One transformation is sound but it requires wrapping comparisons using modulo operations and thus the generated SMT encoding is probably slow.
+The encoding of the other transformation is supposed to be fast, but it might be unsound.</p>
+<p>The plots below show that using compiler optimisations clearly helps Dartagnan.
+The x-axes represent solved tasks and the y-axes CPU time.
+Despite the used encoding, it can be seen that the number of solved tasks is quite low (below 70) when <code>-O0</code> is used.
+The <code>-O3</code> option seem to be the best one, closely followed by <code>-Os</code>.
+This is due to the program simplifications made by the optimisations as described in the example above. 
+In general, using optimisations, we are able to solve 3x more benchmarks. 
+<img alt="BV" src="../images/svcomp-2021/BV.png" style="float:left; padding-right:20px; padding-top:20px" width="750">
+<img alt="WI" src="../images/svcomp-2021/WI.png" style="float:left; padding-right:20px; padding-top:20px" width="750">
+<img alt="UI" src="../images/svcomp-2021/UI.png" style="float:left; padding-right:20px; padding-top:20px" width="750"></p>
+<p>Let's take a look to how the different encodings.
+The results on the first plot (using <code>-O0</code>) are somehow surprising.
+It is kind of common knowledge in the verification community that the theory of integers has better performance than the theory of big-vectors.
+However we obtained the worst results using unbounded integers (UI), i.e. the SMACK transformation without wrapping comparisons + the SMT encoding using the theory of integers.
+The reason why the bit-vector encoding (BV) performs better is that many benchmarks use bitwise operations and thus the integer encoding converts the operands to bit-vectors, performs the operation and convert the result back to integers.
+This is required to guarantee soundness, but experiments suggests that converting between theories is very expensive.
+We expected UI to be the fastest of both integer encodings, however we were surprised that wrapped integers encoding (WI), which requires many modulo operations, performed better than UI.
+So far we do not have an answer of why this is the case.
+<img alt="O0" src="../images/svcomp-2021/O0.png" style="float:left; padding-right:20px; padding-top:20px" width="750"></p>
+<p>When compiled using <code>-O3</code> (see below), the UI encoding was faster than WI as one would expect.
+However, due to its unsoundness of the transformation, this generates many wrong results.
+Since wrong results gives negative points in SVCOMP, if we compared the obtained points, WI performed better than UI.
+At this optimisation level, BV was a clear winner both on solving times (again because pure bit-vectors are faster than switching between theories) and correctness of results.
+<img alt="O3" src="../images/svcomp-2021/O3.png" style="float:left; padding-right:20px; padding-top:20px" width="750"></p>
+<h2>Conclusion</h2>
+<p>Something that is quite clear is that using compiler optimisations helps software verification tools.
+Here we just evaluated a BMC, but <a href="https://klee.github.io/tutorials/testing-function/">KLEE also uses some hand-picked optimisations before starting the exploration</a>.
+Which encoding to use depends on the presence of bitwise operations.
+However, remember that even if they are not present in the original C file, they can be introduced by the compiler optimisations.  </p>                </article>
+            </aside><!-- /#featured -->
+                <section id="content" class="body">
+                    <h1>Other articles</h1>
+                    <ol id="posts-list" class="hfeed">
+
+            <li><article class="hentry">
+                <header>
+                    <h1><a href="https://hernanponcedeleon.github.io/articles/artifacts.html" rel="bookmark"
+                           title="Permalink to Creating successful artifacts">Creating successful artifacts</a></h1>
+                </header>
+
+                <div class="entry-content">
 <footer class="post-info">
         <span>Mon 21 September 2020</span>
 
-</footer><!-- /.post-info --><hr>
+</footer><!-- /.post-info -->                <hr>
 <p><img alt="Artifacts" src="../images/artifacts.png" style="float:left; padding-right:20px; padding-top:20px" width="300"></p>
 <style>body {text-align: justify}</style>
 
 <p>This year I took part in the Artifact Evaluation Committee (AEC) of three of the most important programming languages conferences: <a href="https://popl20.sigplan.org">POPL</a>, <a href="https://conf.researchr.org/home/pldi-2020">PLDI</a> and <a href="https://2020.splashcon.org/track/splash-2020-oopsla">OOPSLA</a>.
-Below I describe some of the problems I commonly encounter together with some tips on how to avoid them. I also mention some of the things you (as an author) can do to make the life of the reviewers easier and thus increase your chances of acceptance.
-Notice that this is based on my experience with the particular class of artifact which I normally review: <em>comparing a tool agains others on a given set of benchmarks</em>.</p>
-<p>Most Artifact Evaluations have a first phase (normally called <em>kick-the-tires</em>) where reviewers perform a simple test stressing the key elements of the artifact. The instructions for such phase shall be clearly marked in the documentation of the artifact and shall be as easy as possible. Reviewers should be able to run this phase in 30 minutes and, if passed, they should have no technical difficulties with the rest of your artifact.
-In this first phase, most reviewers will not read the instructions for the complete evaluation. It is thus a good idea to give an overall estimation of how long the complete experiments will take. If they take long, this will alert reviewers to start as soon as possible (even before the complete evaluation phase officially starts).</p>
-<h2>Claims and experiments</h2>
-<p>It is a good idea to state in the documentation which claims of the paper the artifact support. Many authors tend not to mention the claims that are not supported by the artifact. I personally prefer to have both clearly stated in the documentation. </p>
-<p>If the complete experiments take long (I have evaluated artifacts where it took 5 days to complete a run), it is a good idea to provide a short version of the experiments using a representative subset of benchmarks that can still validate the claims of the paper. With this I don't mean you should not provide your complete experiments (one of the goals of an artifact is to have an archive where complete results can be fully reproduced), but keep in mind that the review process can be on a tight schedule.</p>
-<h2>Packaging</h2>
-<p>I have mostly seen 4 ways of packaging an artifact:</p>
-<ol>
-<li><strong>Instructions to install all the tools</strong>: this is a nightmare for reviewers and completely dangerous for you. The installation of most research prototypes I have seen do not work out-of-the-box or might not run on every platform.</li>
-<li><strong>AWS machine</strong>: this might violate reviewers anonymity.</li>
-<li><strong>Virtual machine</strong>: I used to be a big fan of this packaging, but this normally result in a file of several GBs which might be quite slow.</li>
-<li><strong>Docker image</strong>: normally light and fast.</li>
-</ol>
-<p>Both 3. and 4. allow you to package your artifact in a way that all dependencies are fulfilled and it reduces the chances of the reviewer encountering technical issues. Even if you go for such options, you should always provide information on how to install everything that is needed (pointers to each tool documentation should be enough).</p>
-<p>Keep the artifact as small as possible. Before submission, remove all unnecessary data (e.g. logs or other generated data). However, if experiments take long, it could be a good idea to provide the logs that were generated while writing the paper. You can place those in a different folder to avoid confusion when the reviewer is running the artifact. </p>
-<h2>Presenting your results</h2>
-<p>The format of the results generated by the artifact shall be as close to the one in the paper. In the best scenario, save your results in a file (e.g. csv) and provide a script that automatically creates the tables and/or figures (in tex, html or any other format that will make the visualisation easy). If the papers presents summarised results (one benchmark is executed several times and the paper just report the average result), make your script to compute those from the raw data. If you will present table results just as a csv file, be sure that the names of the columns match those in the paper.</p>
-<h2>Reusability</h2>
-<p>Most Artifact Evaluations make a distinction between <strong>functional</strong> and <strong>reusable</strong>. For the later, I think you should include documentation for at least the following questions:</p>
-<ol>
-<li><strong>How can I modify the tool?</strong> This basically means that the source code is available and there is documentation on how to build the tool.</li>
-<li><strong>How to add new benchmarks?</strong> Your script might run all benchmarks in a given folder or there might be a file (maybe even the same script) where the new benchmarks and its options need to be added. In any case, you should provide information about this.</li>
-<li><strong>How to add a new tool to the comparison?</strong> There might be one script per tool or one for the whole experiments. The precise command will be tool dependent, but you should give some pointer to the scripts that need to be modified.</li>
-</ol>                </article>
+Below I describe some of the problems I commonly encounter together with some tips on how to avoid them. I also mention some …</p>
+                <a class="readmore" href="https://hernanponcedeleon.github.io/articles/artifacts.html">read more</a>
+                </div><!-- /.entry-content -->
+            </article></li>
+            </ol><!-- /#posts-list -->
 <p class="paginator">
     Page 1 / 1
 </p>
-            </aside><!-- /#featured -->
-            </ol><!-- /#posts-list -->
             </section><!-- /#content -->
         <section id="extras" class="body">
                 <div class="social">
